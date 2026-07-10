@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FableRace</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0e14; }
+    #app { width: 100%; height: 100%; }
+    canvas { display: block; }
+
+    #hud {
+      position: fixed; inset: 0; pointer-events: none;
+      font-family: "Avenir Next", "Segoe UI", system-ui, sans-serif;
+      color: #fff; user-select: none;
+    }
+
+    .panel {
+      background: rgba(10, 14, 20, 0.62);
+      backdrop-filter: blur(6px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 12px;
+    }
+
+    #timing {
+      position: absolute; top: 16px; left: 16px;
+      padding: 12px 16px; min-width: 210px;
+    }
+    #timing .lap-label { font-size: 12px; letter-spacing: 2px; opacity: 0.65; text-transform: uppercase; }
+    #timing .current { font-size: 30px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.2; }
+    #timing .row { display: flex; justify-content: space-between; gap: 16px; font-size: 14px; margin-top: 3px; font-variant-numeric: tabular-nums; }
+    #timing .row .val { font-weight: 600; }
+    #timing .best .val { color: #b57bff; }
+
+    #speedo {
+      position: absolute; right: 20px; bottom: 20px;
+      padding: 10px; border-radius: 50%;
+    }
+    #speedo canvas { display: block; }
+
+    #minimap {
+      position: absolute; left: 16px; bottom: 16px;
+      padding: 8px;
+    }
+    #minimap canvas { display: block; }
+
+    #message {
+      position: absolute; top: 34%; left: 50%; transform: translate(-50%, -50%);
+      font-size: 84px; font-weight: 900; text-align: center;
+      text-shadow: 0 4px 24px rgba(0,0,0,0.6);
+      transition: opacity 0.25s;
+    }
+
+    #help {
+      position: absolute; top: 16px; right: 16px;
+      padding: 10px 14px; font-size: 12.5px; line-height: 1.75; opacity: 0.92;
+    }
+    kbd {
+      background: rgba(255,255,255,0.14); border: 1px solid rgba(255,255,255,0.25);
+      border-radius: 4px; padding: 0 5px; font-family: inherit; font-size: 11.5px;
+    }
+
+    #lapflash {
+      position: absolute; top: 46%; left: 50%; transform: translate(-50%, -50%);
+      font-size: 34px; font-weight: 800; font-variant-numeric: tabular-nums;
+      opacity: 0; pointer-events: none; text-shadow: 0 3px 16px rgba(0,0,0,0.6);
+    }
+    #lapflash.show { animation: lapfade 2.4s ease-out forwards; }
+
+    #drift {
+      position: absolute; bottom: 24%; left: 50%; transform: translateX(-50%) skewX(-8deg);
+      font-size: 30px; font-weight: 900; font-style: italic; letter-spacing: 1px;
+      color: #ffb02e; text-shadow: 0 3px 14px rgba(0,0,0,0.55);
+      opacity: 0; pointer-events: none; font-variant-numeric: tabular-nums;
+      transition: opacity 0.15s;
+    }
+    #drift.live { opacity: 1; }
+    #drift.done { animation: lapfade 1.6s ease-out forwards; }
+    @keyframes lapfade {
+      0% { opacity: 0; transform: translate(-50%, -30%); }
+      12% { opacity: 1; transform: translate(-50%, -50%); }
+      75% { opacity: 1; }
+      100% { opacity: 0; }
+    }
+
+    /* --- start menu --- */
+    #menu {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(6, 9, 14, 0.45);
+      pointer-events: auto;
+      transition: opacity 0.3s;
+    }
+    #menu.hidden { opacity: 0; pointer-events: none; }
+    .menu-card {
+      padding: 36px 44px; text-align: center; max-width: 420px;
+      background: rgba(10, 14, 20, 0.82);
+    }
+    .menu-card h1 {
+      font-size: 52px; font-weight: 900; letter-spacing: 1px;
+      background: linear-gradient(120deg, #7dd3fc, #b57bff);
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+    .menu-card .tagline { margin-top: 6px; font-size: 14px; opacity: 0.7; }
+    .mode-row { display: flex; gap: 10px; margin-top: 20px; }
+    #btn-start, #btn-race {
+      flex: 1; padding: 12px 10px 10px;
+      font: 700 17px "Avenir Next", "Segoe UI", system-ui, sans-serif;
+      color: #0a0e14; border: none; border-radius: 10px; cursor: pointer;
+      transition: transform 0.12s, box-shadow 0.12s;
+    }
+    #btn-start { background: linear-gradient(120deg, #7dd3fc, #a78bfa); }
+    #btn-race { background: linear-gradient(120deg, #fbbf24, #f87171); }
+    #btn-start:hover, #btn-race:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(125, 211, 252, 0.3); }
+    .mode-sub { display: block; font-size: 11px; font-weight: 600; opacity: 0.75; margin-top: 2px; }
+
+    /* --- race HUD + results --- */
+    #results {
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      padding: 26px 38px; text-align: center; pointer-events: none; min-width: 320px;
+    }
+    #results h2 { font-size: 34px; font-weight: 900; margin-bottom: 14px; }
+    #results ol { list-style: none; text-align: left; font-size: 16px; line-height: 2; }
+    #results li { display: flex; justify-content: space-between; gap: 24px; }
+    #results li.you { color: #7dd3fc; font-weight: 800; }
+    #results .res-time { font-variant-numeric: tabular-nums; opacity: 0.8; }
+    #results .results-hint { margin-top: 14px; font-size: 12.5px; opacity: 0.6; }
+    #results.hidden { display: none; }
+    .menu-controls {
+      margin-top: 26px; font-size: 13px; line-height: 2.1; opacity: 0.85;
+      text-align: left; display: inline-block;
+    }
+    .menu-credits { margin-top: 20px; font-size: 10.5px; opacity: 0.45; line-height: 1.5; }
+
+    /* --- car select --- */
+    #car-select { display: flex; align-items: stretch; gap: 8px; margin: 18px 0 4px; }
+    .car-arrow {
+      width: 40px; font-size: 26px; font-weight: 700; color: #dfe7f5;
+      background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.18);
+      border-radius: 10px; cursor: pointer; transition: background 0.12s;
+    }
+    .car-arrow:hover { background: rgba(255,255,255,0.18); }
+    .car-card {
+      flex: 1; padding: 12px 16px; border-radius: 10px;
+      background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.14);
+      text-align: left;
+    }
+    #car-name { font-size: 20px; font-weight: 800; }
+    #car-blurb { font-size: 12px; opacity: 0.65; margin: 2px 0 10px; min-height: 28px; }
+    .stat-row { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
+    .stat-row .stat-label { width: 112px; font-size: 11px; opacity: 0.7; text-align: left; }
+    .stat-bar { display: block; flex: 1; height: 6px; border-radius: 3px; background: rgba(255,255,255,0.12); overflow: hidden; }
+    .stat-fill { display: block; height: 100%; border-radius: 3px; background: linear-gradient(90deg, #7dd3fc, #b57bff); }
+
+    /* --- settings view --- */
+    #menu-settings.hidden, #menu-main.hidden { display: none; }
+    #menu-settings h2 { font-size: 24px; font-weight: 800; margin-bottom: 16px; }
+    .btn-secondary {
+      margin-top: 12px; padding: 9px 22px;
+      font: 600 14px "Avenir Next", "Segoe UI", system-ui, sans-serif;
+      color: #dfe7f5; background: rgba(255,255,255,0.09);
+      border: 1px solid rgba(255,255,255,0.2); border-radius: 9px; cursor: pointer;
+      transition: background 0.12s;
+    }
+    .btn-secondary:hover { background: rgba(255,255,255,0.16); }
+    .preset-row { display: flex; gap: 8px; justify-content: center; margin: 10px 0 14px; }
+    .preset-row select, .preset-row input[type="text"] {
+      flex: 1; max-width: 230px; padding: 8px 10px;
+      font: 500 13.5px "Avenir Next", "Segoe UI", system-ui, sans-serif;
+      color: #fff; background: rgba(255,255,255,0.09);
+      border: 1px solid rgba(255,255,255,0.22); border-radius: 8px; outline: none;
+    }
+    .preset-row select option { color: #111; }
+    .preset-row button {
+      padding: 8px 14px; font: 600 13px "Avenir Next", system-ui, sans-serif;
+      color: #0a0e14; background: #7dd3fc; border: none; border-radius: 8px; cursor: pointer;
+    }
+    .preset-row button:hover { background: #a5e3ff; }
+    #preset-delete { background: rgba(255, 100, 100, 0.8); color: #fff; }
+    #preset-delete:hover { background: rgba(255, 120, 120, 1); }
+    .slider-row { margin: 12px 0; text-align: left; }
+    .slider-top { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px; }
+    .slider-val { font-weight: 700; color: #7dd3fc; font-variant-numeric: tabular-nums; }
+    .slider-row input[type="range"] {
+      width: 100%; accent-color: #7dd3fc; cursor: pointer;
+    }
+  </style>
+  <script type="module" crossorigin src="/fablerace/assets/index-DMO7reIY.js"></script>
+</head>
+<body>
+  <div id="app"></div>
+  <div id="hud">
+    <div id="timing" class="panel">
+      <div class="lap-label">Круг <span id="lapnum">–</span></div>
+      <div class="current" id="curlap">--:--.---</div>
+      <div class="row last"><span>Последний</span><span class="val" id="lastlap">--:--.---</span></div>
+      <div class="row best"><span>Лучший</span><span class="val" id="bestlap">--:--.---</span></div>
+    </div>
+    <div id="help" class="panel">
+      <kbd>W</kbd>/<kbd>↑</kbd> газ&nbsp;&nbsp;<kbd>S</kbd>/<kbd>↓</kbd> тормоз&nbsp;&nbsp;<kbd>A</kbd>/<kbd>D</kbd> руль<br>
+      <kbd>Space</kbd> ручник/дрифт&nbsp;&nbsp;<kbd>Shift</kbd> нитро<br>
+      <kbd>R</kbd> на трассу&nbsp;&nbsp;<kbd>Esc</kbd> меню&nbsp;&nbsp;<kbd>M</kbd> звук
+    </div>
+    <div id="speedo" class="panel"><canvas id="speedo-canvas" width="190" height="190"></canvas></div>
+    <div id="minimap" class="panel"><canvas id="minimap-canvas" width="170" height="170"></canvas></div>
+    <div id="message"></div>
+    <div id="lapflash"></div>
+    <div id="drift"></div>
+    <div id="results" class="panel hidden">
+      <h2>Финиш!</h2>
+      <ol id="results-list"></ol>
+      <div class="results-hint"><kbd>Enter</kbd> ещё раз · <kbd>Esc</kbd> в меню</div>
+    </div>
+
+    <div id="menu" class="hidden">
+      <div class="menu-card panel">
+        <div id="menu-main">
+          <h1>FableRace</h1>
+          <div class="tagline">Трасса свободна. Покажи лучший круг.</div>
+
+          <div id="car-select">
+            <button id="car-prev" class="car-arrow" title="Предыдущая">‹</button>
+            <div class="car-card">
+              <div id="car-name"></div>
+              <div id="car-blurb"></div>
+              <div id="car-stats"></div>
+            </div>
+            <button id="car-next" class="car-arrow" title="Следующая">›</button>
+          </div>
+
+          <div class="mode-row">
+            <button id="btn-start">Тренировка<span class="mode-sub">с призраком круга</span></button>
+            <button id="btn-race">Гонка<span class="mode-sub">3 круга, 3 соперника</span></button>
+          </div>
+          <button id="btn-settings" class="btn-secondary">⚙ Настройки машины</button>
+          <div class="menu-controls">
+            <kbd>W</kbd>/<kbd>↑</kbd> газ &nbsp; <kbd>S</kbd>/<kbd>↓</kbd> тормоз / задний ход<br>
+            <kbd>A</kbd> <kbd>D</kbd> / <kbd>←</kbd> <kbd>→</kbd> руль &nbsp; <kbd>Space</kbd> ручник/дрифт<br>
+            <kbd>Shift</kbd> нитро — запас копится дрифтом<br>
+            <kbd>R</kbd> вернуться на трассу &nbsp; <kbd>Enter</kbd> рестарт<br>
+            <kbd>Esc</kbd> выйти в меню &nbsp; <kbd>M</kbd> вкл/выкл звук
+          </div>
+          <div class="menu-credits">
+            Модели: Kenney Car Kit (CC0) · Текстуры: ambientCG (CC0)
+          </div>
+        </div>
+
+        <div id="menu-settings" class="hidden">
+          <h2>Настройки машины</h2>
+          <div class="preset-row">
+            <select id="preset-select"></select>
+            <button id="preset-delete" title="Удалить пресет">✕</button>
+          </div>
+          <div id="sliders"></div>
+          <div class="preset-row">
+            <input id="preset-name" type="text" placeholder="Название пресета" maxlength="24">
+            <button id="preset-save">Сохранить</button>
+          </div>
+          <button id="btn-back" class="btn-secondary">← Назад</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

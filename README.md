@@ -2,13 +2,18 @@
 
 Браузерная 3D-гонка на Three.js: аркадная физика, замкнутая трасса, таймер кругов с секторами, мини-карта и камера-погоня.
 
+**▶ Играть: https://n1ghtk1n.github.io/fablerace/**
+
 ## Запуск
 
 ```bash
 npm install
 npm run dev      # открыть http://localhost:5173
 npm run build    # прод-сборка в dist/
+npm run deploy   # сборка + публикация на GitHub Pages (ветка gh-pages)
 ```
+
+Пути к ассетам проходят через `src/asset.js` (`import.meta.env.BASE_URL`), поэтому игра работает и в корне домена (dev), и под подуровнем `/fablerace/` на Pages — `base` задаётся в [vite.config.js](vite.config.js).
 
 ## Управление
 
